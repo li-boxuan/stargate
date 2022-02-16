@@ -45,7 +45,7 @@ public class JsonSchemaResourceIntTest extends BaseIntegrationTest {
   @BeforeAll
   public static void setup(StargateConnectionInfo cluster) throws IOException {
     host = "http://" + cluster.seedAddress();
-    hostWithPort = host + ":" + DEFAULT_DOCS_API_PORT;
+    hostWithPort = host + ":8082";
 
     initAuth();
   }
