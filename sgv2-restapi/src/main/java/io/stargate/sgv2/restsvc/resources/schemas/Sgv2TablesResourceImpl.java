@@ -2,16 +2,17 @@ package io.stargate.sgv2.restsvc.resources.schemas;
 
 import io.stargate.proto.QueryOuterClass;
 import io.stargate.proto.Schema;
+import io.stargate.proto.StargateBridgeGrpc;
 import io.stargate.sgv2.common.cql.builder.Column;
 import io.stargate.sgv2.common.cql.builder.ImmutableColumn;
 import io.stargate.sgv2.common.cql.builder.QueryBuilder;
-import io.stargate.sgv2.common.grpc.StargateBridgeClient;
 import io.stargate.sgv2.restsvc.grpc.BridgeProtoTypeTranslator;
+import io.stargate.sgv2.restsvc.grpc.BridgeSchemaClient;
 import io.stargate.sgv2.restsvc.models.Sgv2ColumnDefinition;
 import io.stargate.sgv2.restsvc.models.Sgv2RESTResponse;
 import io.stargate.sgv2.restsvc.models.Sgv2Table;
 import io.stargate.sgv2.restsvc.models.Sgv2TableAddRequest;
-import io.stargate.sgv2.restsvc.resources.CreateStargateBridgeClient;
+import io.stargate.sgv2.restsvc.resources.CreateGrpcStub;
 import io.stargate.sgv2.restsvc.resources.ResourceBase;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,16 +31,17 @@ import javax.ws.rs.core.Response.Status;
 @Path("/v2/schemas/keyspaces/{keyspaceName}/tables")
 @Produces(MediaType.APPLICATION_JSON)
 @Singleton
-@CreateStargateBridgeClient
+@CreateGrpcStub
 public class Sgv2TablesResourceImpl extends ResourceBase implements Sgv2TablesResourceApi {
   @Override
   public Response getAllTables(
-      final StargateBridgeClient bridge,
+      final StargateBridgeGrpc.StargateBridgeBlockingStub blockingStub,
       final String keyspaceName,
       final boolean raw,
       final HttpServletRequest request) {
     requireNonEmptyKeyspace(keyspaceName);
-    List<Schema.CqlTable> tableDefs = bridge.getTables(keyspaceName);
+    List<Schema.CqlTable> tableDefs =
+        BridgeSchemaClient.create(blockingStub).findAllTables(keyspaceName);
     List<Sgv2Table> tableResponses =
         tableDefs.stream().map(t -> table2table(t, keyspaceName)).collect(Collectors.toList());
     final Object payload = raw ? tableResponses : new Sgv2RESTResponse(tableResponses);
@@ -48,7 +50,7 @@ public class Sgv2TablesResourceImpl extends ResourceBase implements Sgv2TablesRe
 
   @Override
   public Response getOneTable(
-      final StargateBridgeClient bridge,
+      final StargateBridgeGrpc.StargateBridgeBlockingStub blockingStub,
       final String keyspaceName,
       final String tableName,
       final boolean raw,
@@ -56,21 +58,16 @@ public class Sgv2TablesResourceImpl extends ResourceBase implements Sgv2TablesRe
     requireNonEmptyKeyspaceAndTable(keyspaceName, tableName);
     // NOTE: Can Not use "callWithTable()" as that would return 400 (Bad Request) for
     // missing Table; here we specifically want 404 instead.
-    return bridge
-        .getTable(keyspaceName, tableName)
-        .map(
-            tableDef -> {
-              Sgv2Table tableResponse = table2table(tableDef, keyspaceName);
-              final Object payload = raw ? tableResponse : new Sgv2RESTResponse(tableResponse);
-              return Response.status(Status.OK).entity(payload).build();
-            })
-        .orElseThrow(
-            () -> new WebApplicationException("unable to describe table", Status.NOT_FOUND));
+    Schema.CqlTable tableDef =
+        BridgeSchemaClient.create(blockingStub).findTable(keyspaceName, tableName);
+    Sgv2Table tableResponse = table2table(tableDef, keyspaceName);
+    final Object payload = raw ? tableResponse : new Sgv2RESTResponse(tableResponse);
+    return Response.status(Status.OK).entity(payload).build();
   }
 
   @Override
   public Response createTable(
-      final StargateBridgeClient bridge,
+      final StargateBridgeGrpc.StargateBridgeBlockingStub blockingStub,
       final String keyspaceName,
       final Sgv2TableAddRequest tableAdd,
       final HttpServletRequest request) {
@@ -114,7 +111,7 @@ public class Sgv2TablesResourceImpl extends ResourceBase implements Sgv2TablesRe
             .column(columns)
             .build();
 
-    bridge.executeQuery(
+    blockingStub.executeQuery(
         QueryOuterClass.Query.newBuilder()
             .setParameters(parametersForLocalQuorum())
             .setCql(cql)
@@ -127,14 +124,14 @@ public class Sgv2TablesResourceImpl extends ResourceBase implements Sgv2TablesRe
 
   @Override
   public Response updateTable(
-      final StargateBridgeClient bridge,
+      final StargateBridgeGrpc.StargateBridgeBlockingStub blockingStub,
       final String keyspaceName,
       final String tableName,
       final Sgv2TableAddRequest tableUpdate,
       final HttpServletRequest request) {
     requireNonEmptyKeyspaceAndTable(keyspaceName, tableName);
     return callWithTable(
-        bridge,
+        blockingStub,
         keyspaceName,
         tableName,
         (tableDef) -> {
@@ -157,7 +154,7 @@ public class Sgv2TablesResourceImpl extends ResourceBase implements Sgv2TablesRe
                   .table(keyspaceName, tableName)
                   .withDefaultTTL(options.getDefaultTimeToLive())
                   .build();
-          bridge.executeQuery(
+          blockingStub.executeQuery(
               QueryOuterClass.Query.newBuilder()
                   .setParameters(parametersForLocalQuorum())
                   .setCql(cql)
@@ -170,14 +167,14 @@ public class Sgv2TablesResourceImpl extends ResourceBase implements Sgv2TablesRe
 
   @Override
   public Response deleteTable(
-      final StargateBridgeClient bridge,
+      final StargateBridgeGrpc.StargateBridgeBlockingStub blockingStub,
       final String keyspaceName,
       final String tableName,
       final HttpServletRequest request) {
     requireNonEmptyKeyspaceAndTable(keyspaceName, tableName);
     String cql = new QueryBuilder().drop().table(keyspaceName, tableName).ifExists().build();
     QueryOuterClass.Query query = QueryOuterClass.Query.newBuilder().setCql(cql).build();
-    /*QueryOuterClass.Response grpcResponse =*/ bridge.executeQuery(query);
+    /*QueryOuterClass.Response grpcResponse =*/ blockingStub.executeQuery(query);
     return Response.status(Status.NO_CONTENT).build();
   }
 

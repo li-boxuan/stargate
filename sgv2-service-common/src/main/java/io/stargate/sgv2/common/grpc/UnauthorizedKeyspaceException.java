@@ -15,7 +15,7 @@
  */
 package io.stargate.sgv2.common.grpc;
 
-public class UnauthorizedKeyspaceException extends BridgeAuthorizationException {
+public class UnauthorizedKeyspaceException extends Exception {
   private final String keyspaceName;
 
   public UnauthorizedKeyspaceException(String keyspaceName) {

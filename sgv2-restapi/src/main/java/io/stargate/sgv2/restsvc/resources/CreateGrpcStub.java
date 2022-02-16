@@ -13,23 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.stargate.sgv2.common.grpc;
+package io.stargate.sgv2.restsvc.resources;
 
-public class UnauthorizedTableException extends BridgeAuthorizationException {
-  private final String keyspaceName;
-  private final String tableName;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import javax.ws.rs.NameBinding;
 
-  public UnauthorizedTableException(String keyspaceName, String tableName) {
-    super(String.format("Unauthorized table: %s.%s", keyspaceName, tableName));
-    this.keyspaceName = keyspaceName;
-    this.tableName = tableName;
-  }
-
-  public String getKeyspaceName() {
-    return keyspaceName;
-  }
-
-  public String getTableName() {
-    return tableName;
-  }
-}
+/** Annotates resources that we want filtered with {@link CreateGrpcStubFilter}. */
+@NameBinding
+@Retention(RetentionPolicy.RUNTIME)
+public @interface CreateGrpcStub {}
