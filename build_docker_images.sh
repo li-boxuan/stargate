@@ -58,9 +58,9 @@ cp ./stargate-lib/*.jar $LIBDIR
 cp ./stargate-lib/logback.xml $LIBDIR
 rm ${LIBDIR}/persistence*.jar
 
-docker buildx build --target coordinator-4_0 --build-arg LIBDIR="$LIBDIR" -t stargateio/coordinator-4_0:$SGTAG $DOCKER_FLAGS .
-docker buildx build --target coordinator-3_11 --build-arg LIBDIR="$LIBDIR" -t stargateio/coordinator-3_11:$SGTAG $DOCKER_FLAGS .
-docker buildx build --target coordinator-dse-68 --build-arg LIBDIR="$LIBDIR" -t stargateio/coordinator-dse-68:$SGTAG $DOCKER_FLAGS .
+docker buildx build --target coordinator-4_0 --build-arg LIBDIR="$LIBDIR" -t stargate-341420/coordinator-4_0:$SGTAG $DOCKER_FLAGS .
+docker buildx build --target coordinator-3_11 --build-arg LIBDIR="$LIBDIR" -t stargate-341420/coordinator-3_11:$SGTAG $DOCKER_FLAGS .
+docker buildx build --target coordinator-dse-68 --build-arg LIBDIR="$LIBDIR" -t stargate-341420/coordinator-dse-68:$SGTAG $DOCKER_FLAGS .
 
 rm -rf ${LIBDIR}
 
@@ -68,5 +68,5 @@ rm -rf ${LIBDIR}
 # API Service images
 #
 
-docker buildx build --target restapi -t stargateio/restapi:$SGTAG $DOCKER_FLAGS .
+docker buildx build --target restapi -t stargate-341420/restapi:$SGTAG $DOCKER_FLAGS .
 

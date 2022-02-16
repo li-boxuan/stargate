@@ -1,5 +1,5 @@
 HOSTNAME        := gcr.io
-PROJECT         := stargateio
+PROJECT         := stargate-341420
 NAME            := stargate-builder
 VERSION         := v1.0.6
 TAG             := ${VERSION}
@@ -22,7 +22,7 @@ build-docker:
 push: check-image push-exe
 
 check-image:
-	$(eval image := $(shell gcloud container images list-tags gcr.io/stargateio/stargate-builder | grep "${VERSION}"))
+	$(eval image := $(shell gcloud container images list-tags gcr.io/stargate-341420/stargate-builder | grep "${VERSION}"))
 	@if [ -n "${image}" ]; then \
 		echo -n "The image with the version ${VERSION} exists, do you want to overwrite [Y/n]?" \
 			&& read ans \
