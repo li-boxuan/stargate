@@ -7,9 +7,8 @@ import com.amazonaws.services.dynamodbv2.document.*;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
 import com.amazonaws.services.dynamodbv2.model.ListTablesResult;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
+
+import java.util.*;
 
 /**
  * This is a sample application that allows developers to quickly test DynamoDB features. Remember
@@ -26,6 +25,12 @@ public class DynamoSampleApp {
     ItemCollection<QueryOutcome> items = index.query(querySpec);
     Iterator<Item> iterator = items.iterator();
     System.out.println(iterator.hasNext());
+  }
+
+  private static void getItem(DynamoDB dynamoDB, long partitionId, String rangeId) {
+    Table table = dynamoDB.getTable("crud_sample_table");
+    Item item = table.getItem(new PrimaryKey("Id", partitionId, "sid", rangeId));
+    System.out.println(item);
   }
 
   private static void putSimpleItem(DynamoDB dynamoDB) {
@@ -45,6 +50,12 @@ public class DynamoSampleApp {
               .withString("ProductCategory", "Book");
       table.putItem(item);
 
+      Map<String, Object> dict = new HashMap<>();
+      dict.put("integerList", Arrays.asList(0, 1, 2));
+      dict.put("stringList", Arrays.asList("aa", "bb"));
+      dict.put("nullKey", null);
+      dict.put("hashMap", new HashMap<>());
+      dict.put("doubleSet", new HashSet<>(Arrays.asList(1.0, 2.0)));
       item =
           new Item()
               .withPrimaryKey("Id", 121, "sid", "sid002")
@@ -55,7 +66,8 @@ public class DynamoSampleApp {
               .withString("Dimensions", "8.5x11.0x.75")
               .withNumber("PageCount", 500)
               .withBoolean("InPublication", true)
-              .withString("ProductCategory", "Book");
+              .withString("ProductCategory", "Book")
+              .withMap("Dict", dict);
       table.putItem(item);
     } catch (Exception e) {
       System.err.println("Create items failed.");
@@ -69,6 +81,7 @@ public class DynamoSampleApp {
     ListTablesResult tables = client.listTables();
     DynamoDB dynamoDB = new DynamoDB(client);
     putSimpleItem(dynamoDB);
-    queryIndex(dynamoDB);
+    getItem(dynamoDB, 121, "sid002");
+//    queryIndex(dynamoDB);
   }
 }
