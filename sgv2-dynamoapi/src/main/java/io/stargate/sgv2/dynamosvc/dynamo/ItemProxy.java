@@ -8,6 +8,7 @@ import io.stargate.sgv2.common.cql.builder.QueryBuilder;
 import io.stargate.sgv2.common.grpc.StargateBridgeClient;
 import io.stargate.sgv2.dynamosvc.grpc.BridgeProtoTypeTranslator;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,13 +19,12 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ItemProxy extends Proxy {
+public class ItemProxy extends ProjectiveProxy {
 
   private static final Logger logger = LoggerFactory.getLogger(ItemProxy.class);
 
   public GetItemResult getItem(GetItemRequest getItemRequest, StargateBridgeClient bridge) {
     final String tableName = getItemRequest.getTableName();
-    // TODO: handle ProjectionExpression. For now, return all attributes
     Map<String, AttributeValue> keyMap = getItemRequest.getKey();
     QueryBuilder.QueryBuilder__21 queryBuilder =
         new QueryBuilder().select().from(KEYSPACE_NAME, tableName);
@@ -33,16 +33,15 @@ public class ItemProxy extends Proxy {
           queryBuilder.where(entry.getKey(), Predicate.EQ, DataMapper.fromDynamo(entry.getValue()));
     }
     QueryOuterClass.Response response = bridge.executeQuery(queryBuilder.build());
-    List<Map<String, Object>> resultRows = convertRows(response.getResultSet());
+    Collection<Map<String, AttributeValue>> resultRows =
+        collectResults(
+            response.getResultSet(),
+            getItemRequest.getProjectionExpression(),
+            getItemRequest.getExpressionAttributeNames());
     GetItemResult result = new GetItemResult();
     if (!resultRows.isEmpty()) {
       assert resultRows.size() == 1;
-      result.setItem(
-          resultRows.get(0).entrySet().stream()
-              .filter(entry -> entry.getValue() != null)
-              .collect(
-                  Collectors.toMap(
-                      Map.Entry::getKey, entry -> DataMapper.toDynamo(entry.getValue()))));
+      result.setItem(resultRows.iterator().next());
     }
     return result;
   }

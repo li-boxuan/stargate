@@ -16,7 +16,13 @@ import org.junit.jupiter.api.Test;
 public class ProjectionExpressionVisitorTest {
   @Test
   public void testNestedProjection() {
-    Map<String, String> nameMap = new HashMap<>();
+    Map<String, String> nameMap =
+        new HashMap() {
+          {
+            put("#I", "intCol");
+            put("#D", "dictCol");
+          }
+        };
     Map<String, AttributeValue> valueMap =
         new HashMap() {
           {
@@ -59,10 +65,11 @@ public class ProjectionExpressionVisitorTest {
         };
     AttributeValue item = new AttributeValue().withM(valueMap);
     evaluateProjection("intCol", nameMap, item, new AttributeValue().withN("42"));
+    evaluateProjection("#I", nameMap, item, new AttributeValue().withN("42"));
     evaluateProjection("listCol[1]", nameMap, item, new AttributeValue().withS("sub2"));
     evaluateProjection("dictCol.nestedBoolCol", nameMap, item, new AttributeValue().withBOOL(true));
     evaluateProjection(
-        "dictCol.nestedDictCol.text", nameMap, item, new AttributeValue().withS("text value"));
+        "#D.nestedDictCol.text", nameMap, item, new AttributeValue().withS("text value"));
     evaluateProjection(
         "dictCol.nestedLstCol[0][0]", nameMap, item, new AttributeValue().withS("deep nested"));
     evaluateProjection(

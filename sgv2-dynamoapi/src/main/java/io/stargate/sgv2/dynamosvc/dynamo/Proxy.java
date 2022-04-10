@@ -13,11 +13,15 @@ import io.stargate.bridge.proto.QueryOuterClass;
 import io.stargate.sgv2.dynamosvc.grpc.BridgeProtoValueConverters;
 import io.stargate.sgv2.dynamosvc.grpc.FromProtoConverter;
 import io.stargate.sgv2.dynamosvc.models.PrimaryKey;
+import io.stargate.sgv2.dynamosvc.utils.ListUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class Proxy {
+  private static final Logger logger = LoggerFactory.getLogger(Proxy.class);
 
   public static final String KEYSPACE_NAME = "dynamodb";
   public static final ObjectMapper awsRequestMapper =
@@ -62,13 +66,38 @@ public abstract class Proxy {
     return primaryKey;
   }
 
-  protected List<Map<String, Object>> convertRows(QueryOuterClass.ResultSet rs) {
+  /**
+   * Given a raw key name in expression, retrieve its real key name
+   *
+   * <p>A raw key name might be a key name or a key placeholder. A placeholder starts with a '#'
+   * pound sign, whose actual value needs to be retrieved from attributeNames.
+   *
+   * <p>See more at
+   * https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html
+   *
+   * @param rawKeyName
+   * @param attributeNames
+   * @return
+   */
+  protected String getKeyName(String rawKeyName, Map<String, String> attributeNames) {
+    if (rawKeyName.charAt(0) == '#') {
+      return attributeNames.get(rawKeyName);
+    } else {
+      return rawKeyName;
+    }
+  }
+
+  protected List<Map<String, AttributeValue>> convertRows(
+      QueryOuterClass.ResultSet rs, int[] retainIndices) {
     FromProtoConverter converter =
-        BridgeProtoValueConverters.instance().fromProtoConverter(rs.getColumnsList());
-    List<Map<String, Object>> resultRows = new ArrayList<>();
+        BridgeProtoValueConverters.instance()
+            .fromProtoConverter(ListUtils.createSublist(rs.getColumnsList(), retainIndices));
+    List<Map<String, AttributeValue>> resultRows = new ArrayList<>();
     List<QueryOuterClass.Row> rows = rs.getRowsList();
     for (QueryOuterClass.Row row : rows) {
-      resultRows.add(converter.mapFromProtoValues(row.getValuesList()));
+      resultRows.add(
+          converter.mapFromProtoValues(
+              ListUtils.createSublist(row.getValuesList(), retainIndices)));
     }
     return resultRows;
   }

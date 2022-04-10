@@ -25,7 +25,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class QueryProxy extends Proxy {
+public class QueryProxy extends ProjectiveProxy {
 
   private static final Logger logger = LoggerFactory.getLogger(QueryProxy.class);
 
@@ -106,23 +106,15 @@ public class QueryProxy extends Proxy {
     java.util.function.Predicate<Map<String, AttributeValue>> pred =
         getFilterPredicate(queryRequest);
 
-    // TODO: support ProjectionExpression which retrieves a subset of row
     QueryOuterClass.Response response = bridge.executeQuery(query);
-    List<Map<String, Object>> resultRows = convertRows(response.getResultSet());
+    Collection<Map<String, AttributeValue>> resultRows =
+        collectResults(
+            response.getResultSet(),
+            queryRequest.getProjectionExpression(),
+            queryRequest.getExpressionAttributeNames());
     QueryResult result = new QueryResult();
     if (!resultRows.isEmpty()) {
-      result.withItems(
-          resultRows.stream()
-              .map(
-                  r ->
-                      r.entrySet().stream()
-                          .filter(entry -> entry.getValue() != null)
-                          .collect(
-                              Collectors.toMap(
-                                  Map.Entry::getKey,
-                                  entry -> DataMapper.toDynamo(entry.getValue()))))
-              .filter(pred)
-              .collect(Collectors.toList()));
+      result.withItems(resultRows.stream().filter(pred).collect(Collectors.toList()));
     }
     return result;
   }
@@ -247,27 +239,6 @@ public class QueryProxy extends Proxy {
     }
 
     throw new IllegalArgumentException(keyConditionExpression + " is not a valid expression");
-  }
-
-  /**
-   * Given a raw key name in expression, retrieve its real key name
-   *
-   * <p>A raw key name might be a key name or a key placeholder. A placeholder starts with a '#'
-   * pound sign, whose actual value needs to be retrieved from attributeNames.
-   *
-   * <p>See more at
-   * https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html
-   *
-   * @param rawKeyName
-   * @param attributeNames
-   * @return
-   */
-  private String getKeyName(String rawKeyName, Map<String, String> attributeNames) {
-    if (rawKeyName.charAt(0) == '#') {
-      return attributeNames.get(rawKeyName);
-    } else {
-      return rawKeyName;
-    }
   }
 
   private AttributeValue retrievePartitionKeyValue(

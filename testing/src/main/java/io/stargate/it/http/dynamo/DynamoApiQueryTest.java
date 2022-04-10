@@ -313,6 +313,28 @@ public class DynamoApiQueryTest extends BaseDynamoApiTest {
     assertEquals(2, collectResults(proxyTable.query(query)).size());
   }
 
+  @Test
+  public void testProjectionExpression() {
+    QuerySpec query =
+        new QuerySpec()
+            .withKeyConditionExpression("#N=:name")
+            .withProjectionExpression("#N,  #D,Sex,  history[0], history[2]")
+            .withNameMap(new NameMap().with("#N", "Username").with("#D", "Deposit"))
+            .withValueMap(new ValueMap().withString(":name", "alice"));
+    assertEquals(collectResults(awsTable.query(query)), collectResults(proxyTable.query(query)));
+    assertEquals(3, collectResults(proxyTable.query(query)).size());
+
+    query =
+        new QuerySpec()
+            .withKeyConditionExpression("#N=:name")
+            // invalid offset
+            .withProjectionExpression("#N,  #D,Sex,  history[1], history[4]")
+            .withNameMap(new NameMap().with("#N", "Username").with("#D", "Deposit"))
+            .withValueMap(new ValueMap().withString(":name", "alice"));
+    assertEquals(collectResults(awsTable.query(query)), collectResults(proxyTable.query(query)));
+    assertEquals(3, collectResults(proxyTable.query(query)).size());
+  }
+
   private Set<Item> collectResults(ItemCollection<QueryOutcome> outcomes) {
     return StreamSupport.stream(outcomes.spliterator(), false).collect(Collectors.toSet());
   }
@@ -324,7 +346,8 @@ public class DynamoApiQueryTest extends BaseDynamoApiTest {
             .withPrimaryKey("Username", "alice", "Birthday", 20000101)
             .withString("Sex", "F")
             .withNumber("Deposit", 100)
-            .withNumber("Loan", 200));
+            .withNumber("Loan", 200)
+            .withList("history", 20220101, 20220201, 20220925));
     items.add(
         new Item()
             .withPrimaryKey("Username", "alice", "Birthday", 19801231)
