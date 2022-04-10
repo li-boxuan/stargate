@@ -4,16 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.*;
 import io.stargate.it.driver.CqlSessionExtension;
 import io.stargate.it.driver.CqlSessionSpec;
 import io.stargate.it.http.ApiServiceExtension;
 import io.stargate.it.http.ApiServiceSpec;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 import net.jcip.annotations.NotThreadSafe;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,6 +84,54 @@ public class DynamoApiItemTest extends BaseDynamoApiTest {
     Table awsTable = awsDynamoDB.getTable(tableName);
     awsTable.putItem(item);
     Item awsResult = awsTable.getItem("Name", "testName");
+    assertEquals(awsResult, proxyResult);
+  }
+
+  /**
+   * Test GetItem API with projectionExpression A few caveats that are not all documented by
+   * DynamoDB:<br>
+   * 1. Sets (StringSet, NumberSet, etc.) do not support offset-based projection<br>
+   * 2. Any token can be replaced by a placeholder with '#' prefix. It doesn't have to be top-level
+   * attribute. For example, "top.second[0]" can be replaced by "#t.#s[0]" with corresponding name
+   * map<br>
+   * 3. Projection results are merged if they belong to the same top-level attribute, e.g.
+   * "dict.integerList[0],dict.stringList[1][2]" would be merged
+   */
+  @Test
+  public void testGetItemWithProjection() {
+    DynamoDB proxyDynamoDB = new DynamoDB(proxyClient);
+    DynamoDB awsDynamoDB = new DynamoDB(awsClient);
+    Table proxyTable = proxyDynamoDB.getTable(tableName);
+    Table awsTable = awsDynamoDB.getTable(tableName);
+
+    Map<String, Object> dict = new HashMap<>();
+    dict.put("integerList", Arrays.asList(0, 1, 2));
+    dict.put("stringList", Arrays.asList("aa", "bb"));
+    Item item =
+        new Item()
+            .withPrimaryKey("Name", "simpleName")
+            .withNumber("Serial", 23)
+            .withNumber("Price", 10.0)
+            .withList("Authors", Arrays.asList("Author21", "Author 22", dict, "Author44"))
+            .withStringSet("StringSet", "ss1", "ss2", "ss3")
+            .withNumberSet("NumberSet", 2, 4, 5)
+            .withMap("dict", dict);
+    proxyTable.putItem(item);
+    awsTable.putItem(item);
+
+    PrimaryKey key = new PrimaryKey("Name", "simpleName");
+    String projection =
+        "#N, Authors[0], Authors[2].#IL[0], Authors[3], #D.stringList[0], #D.#IL[1], NumberSet, StringSet[0]";
+    Map<String, String> nameMap =
+        new HashMap() {
+          {
+            put("#N", "Name");
+            put("#D", "dict");
+            put("#IL", "integerList");
+          }
+        };
+    Item awsResult = awsTable.getItem(key, projection, nameMap);
+    Item proxyResult = proxyTable.getItem(key, projection, nameMap);
     assertEquals(awsResult, proxyResult);
   }
 
