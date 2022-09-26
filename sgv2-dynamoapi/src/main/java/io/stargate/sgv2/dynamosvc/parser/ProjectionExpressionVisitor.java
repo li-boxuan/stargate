@@ -59,6 +59,7 @@ public class ProjectionExpressionVisitor extends ProjectionBaseVisitor<Object> {
   public Object visitArrayAttr(ProjectionParser.ArrayAttrContext ctx) {
     AttributeValue parent = (AttributeValue) this.visit(ctx.attr());
     int offset = Integer.parseInt(ctx.OFFSET().getText());
+    // FIXME: handle invalid expression (e.g. out-of-bound)
     return parent.getL().get(offset);
   }
 
