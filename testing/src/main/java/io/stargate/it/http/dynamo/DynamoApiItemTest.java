@@ -2,10 +2,7 @@ package io.stargate.it.http.dynamo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.amazonaws.services.dynamodbv2.document.DynamoDB;
-import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
-import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.*;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.utils.NameMap;
 import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
@@ -247,6 +244,21 @@ public class DynamoApiItemTest extends BaseDynamoApiTest {
     awsResult = awsTable.getItem("Name", "testName");
 
     assertEquals(awsResult, proxyResult);
+
+    // returnVals == "ALL_OLD"
+    proxyTable.putItem(item);
+    awsTable.putItem(item);
+    deleteItemSpec =
+        new DeleteItemSpec()
+            .withPrimaryKey("Name", "testName")
+            .withReturnValues(ReturnValue.ALL_OLD);
+    DeleteItemOutcome proxyDeleteResult = proxyTable.deleteItem(deleteItemSpec);
+    proxyResult = proxyTable.getItem("Name", "testName");
+    DeleteItemOutcome awsDeleteResult = awsTable.deleteItem(deleteItemSpec);
+    awsResult = awsTable.getItem("Name", "testName");
+
+    assertEquals(awsResult, proxyResult);
+    assertEquals(proxyDeleteResult.getDeleteItemResult(), awsDeleteResult.getDeleteItemResult());
   }
 
   private void createTable() {
