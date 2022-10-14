@@ -159,30 +159,6 @@ public class ItemProxy extends ProjectiveProxy {
       clusteringKey = Optional.of(clusteringKeys.get(0));
     }
 
-    // Cond 1: w/o DynamoDB ConditionExpression - direct delete
-    if (conditionExpression.isEmpty()) {
-      // construct CQL where condition (Partition Key/Primary Key)
-      QueryBuilder.QueryBuilder__43 deleteBuilder =
-          new QueryBuilder()
-              .delete()
-              .from(KEYSPACE_NAME, tableName)
-              .where(
-                  partitionKey.getName(),
-                  Predicate.EQ,
-                  DataMapper.fromDynamo(keyMap.get(partitionKey.getName())));
-
-      if (clusteringKey.isPresent()) {
-        final String clusterKeyName = clusteringKey.get().getName();
-        deleteBuilder =
-            deleteBuilder.where(
-                clusterKeyName, Predicate.EQ, DataMapper.fromDynamo(keyMap.get(clusterKeyName)));
-      }
-
-      bridge.executeQuery(deleteBuilder.build());
-      return new DeleteItemResult();
-    }
-
-    // Cond 2: w/ DynamoDB ConditionExpression
     // Query first
     QueryBuilder.QueryBuilder__21 queryBuilder =
         new QueryBuilder()
@@ -212,29 +188,23 @@ public class ItemProxy extends ProjectiveProxy {
 
     // Regard ConditionExpression as FilterExpression
     // Construct Predicate
-    CharStream chars = CharStreams.fromString(conditionExpression);
-    Lexer lexer = new ExpressionLexer(chars);
-    CommonTokenStream tokens = new CommonTokenStream(lexer);
-    ExpressionParser parser = new ExpressionParser(tokens);
-    FilterExpressionVisitor visitor =
-        new FilterExpressionVisitor(
-            deleteItemRequest.getExpressionAttributeNames(),
-            deleteItemRequest.getExpressionAttributeValues());
-    ParseTree tree = parser.expr();
-    java.util.function.Predicate<Map<String, AttributeValue>> predicate =
-        item -> visitor.isMatch(tree, item);
-
+    java.util.function.Predicate<Map<String, AttributeValue>> predicate;
+    if (conditionExpression.isEmpty()) {
+      predicate = item -> true;
+    } else {
+      CharStream chars = CharStreams.fromString(conditionExpression);
+      Lexer lexer = new ExpressionLexer(chars);
+      CommonTokenStream tokens = new CommonTokenStream(lexer);
+      ExpressionParser parser = new ExpressionParser(tokens);
+      FilterExpressionVisitor visitor =
+          new FilterExpressionVisitor(
+              deleteItemRequest.getExpressionAttributeNames(),
+              deleteItemRequest.getExpressionAttributeValues());
+      ParseTree tree = parser.expr();
+      predicate = item -> visitor.isMatch(tree, item);
+    }
     List<Map<String, AttributeValue>> resultList =
-        resultRows.stream()
-            .map(
-                r ->
-                    r.entrySet().stream()
-                        .filter(entry -> entry.getValue() != null)
-                        .collect(
-                            Collectors.toMap(
-                                Map.Entry::getKey, entry -> DataMapper.toDynamo(entry.getValue()))))
-            .filter(predicate)
-            .collect(Collectors.toList());
+        resultRows.stream().filter(predicate).collect(Collectors.toList());
 
     // if no result, exit
     if (resultList.isEmpty()) {
@@ -257,6 +227,10 @@ public class ItemProxy extends ProjectiveProxy {
               clusterKeyName, Predicate.EQ, DataMapper.fromDynamo(keyMap.get(clusterKeyName)));
     }
     bridge.executeQuery(deleteBuilder.build());
+    final String returnValues = deleteItemRequest.getReturnValues();
+    if (returnValues.equals("ALL_OLD")) {
+      return new DeleteItemResult().withAttributes(resultList.get(0));
+    }
     return new DeleteItemResult();
   }
 }
