@@ -5,15 +5,22 @@ import io.stargate.bridge.proto.QueryOuterClass;
 import io.stargate.bridge.proto.Schema;
 import io.stargate.sgv2.common.cql.builder.Predicate;
 import io.stargate.sgv2.common.cql.builder.QueryBuilder;
+import io.stargate.sgv2.common.cql.builder.ValueModifier;
 import io.stargate.sgv2.common.grpc.StargateBridgeClient;
 import io.stargate.sgv2.dynamosvc.grpc.BridgeProtoTypeTranslator;
+import io.stargate.sgv2.dynamosvc.parser.UpdateExpressionLexer;
+import io.stargate.sgv2.dynamosvc.parser.UpdateExpressionParser;
+import io.stargate.sgv2.dynamosvc.parser.UpdateItemExpressionVisitor;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.Lexer;
+import org.antlr.v4.runtime.tree.ParseTree;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
@@ -127,5 +134,60 @@ public class ItemProxy extends ProjectiveProxy {
     bridge.executeQuery(writeDataBuilder.build());
     // Step 4 (TODO): Write index if applicable
     return new PutItemResult();
+  }
+
+  public UpdateItemResult UpdateItem(
+      UpdateItemRequest updateItemRequest, StargateBridgeClient bridge) throws IOException {
+    // Step 1: Fetch table schema
+    final String tableName = updateItemRequest.getTableName();
+    final String updateExpression = updateItemRequest.getUpdateExpression();
+    final Map<String, AttributeValue> keyMap = updateItemRequest.getKey();
+    Schema.CqlTable table =
+        bridge
+            .getTable(KEYSPACE_NAME, tableName, false)
+            .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableName));
+    QueryOuterClass.ColumnSpec partitionKey = table.getPartitionKeyColumns(0);
+    List<QueryOuterClass.ColumnSpec> clusteringKeys = table.getClusteringKeyColumnsList();
+    Optional<QueryOuterClass.ColumnSpec> clusteringKey = Optional.empty();
+    if (CollectionUtils.isNotEmpty(clusteringKeys)) {
+      assert clusteringKeys.size() == 1;
+      clusteringKey = Optional.of(clusteringKeys.get(0));
+    }
+
+    //      TODO: alter table schema if needed
+    CharStream chars = CharStreams.fromString(updateExpression);
+
+    System.out.println(updateExpression);
+
+    Lexer lexer = new UpdateExpressionLexer(chars);
+    CommonTokenStream tokens = new CommonTokenStream(lexer);
+
+    UpdateExpressionParser parser = new UpdateExpressionParser(tokens);
+
+    UpdateItemExpressionVisitor visitor =
+        new UpdateItemExpressionVisitor(
+            updateItemRequest.getExpressionAttributeNames(),
+            updateItemRequest.getExpressionAttributeValues());
+    ParseTree tree = parser.expr();
+    List<ValueModifier> modifiers = (List<ValueModifier>) visitor.visit(tree);
+
+    //    build query to update table
+    QueryBuilder.QueryBuilder__43 query =
+        new QueryBuilder()
+            .update(KEYSPACE_NAME, tableName)
+            .value(modifiers)
+            .where(
+                partitionKey.getName(),
+                Predicate.EQ,
+                DataMapper.fromDynamo(keyMap.get(partitionKey.getName())));
+
+    if (clusteringKey.isPresent()) {
+      final String clusterKeyName = clusteringKey.get().getName();
+      query =
+          query.where(
+              clusterKeyName, Predicate.EQ, DataMapper.fromDynamo(keyMap.get(clusterKeyName)));
+    }
+    bridge.executeQuery(query.build());
+    return new UpdateItemResult();
   }
 }

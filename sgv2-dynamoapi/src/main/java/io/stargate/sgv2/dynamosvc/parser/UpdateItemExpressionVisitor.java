@@ -13,7 +13,7 @@ public class UpdateItemExpressionVisitor extends UpdateExpressionBaseVisitor<Obj
 
   public UpdateItemExpressionVisitor(
       Map<String, String> nameMap, Map<String, AttributeValue> valueMap) {
-    Objects.requireNonNull(nameMap);
+    //    Objects.requireNonNull(nameMap);
     Objects.requireNonNull(valueMap);
     this.nameMap = nameMap;
     this.valueMap = valueMap;
@@ -47,11 +47,6 @@ public class UpdateItemExpressionVisitor extends UpdateExpressionBaseVisitor<Obj
     AttributeValue value = this.visitValue(ctx.value());
     return ValueModifier.set(columnName, (Value) DataMapper.fromDynamo(value));
   }
-
-  //    @Override
-  //    public Object visitSinglePair(UpdateExpressionParser.SinglePairContext ctx) {
-  //        return super.visitSinglePair(ctx);
-  //    }
 
   @Override
   public String visitName(UpdateExpressionParser.NameContext ctx) {

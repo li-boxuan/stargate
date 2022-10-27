@@ -7,6 +7,9 @@ public enum DynamoStatementType {
   DeleteTable,
   DescribeTable,
   DeleteItem,
+
+  UpdateItem,
+
   Query;
 
   public static DynamoStatementType valueOfLowerCase(String arg) {

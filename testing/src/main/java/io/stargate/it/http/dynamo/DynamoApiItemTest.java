@@ -6,6 +6,8 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.spec.UpdateItemSpec;
+import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
 import com.amazonaws.services.dynamodbv2.model.*;
 import io.stargate.it.driver.CqlSessionExtension;
 import io.stargate.it.driver.CqlSessionSpec;
@@ -133,6 +135,40 @@ public class DynamoApiItemTest extends BaseDynamoApiTest {
     Item awsResult = awsTable.getItem(key, projection, nameMap);
     Item proxyResult = proxyTable.getItem(key, projection, nameMap);
     assertEquals(awsResult, proxyResult);
+  }
+
+  @Test
+  public void testUpdateItem(){
+    // DB initialize
+    final DynamoDB proxyDynamoDB = new DynamoDB(proxyClient); // CDB
+    final DynamoDB awsDynamoDB = new DynamoDB(awsClient); // DDB
+    final Table proxyTable = proxyDynamoDB.getTable(tableName);
+    final Table awsTable = awsDynamoDB.getTable(tableName);
+    UpdateItemSpec updateItemSpec;
+    Item proxyResult, awsResult;
+
+    Item item =
+            new Item()
+                    .withPrimaryKey("Name", "testName")
+                    .withNumber("Serial", 23)
+                    .withNumber("Price", 10.0)
+                    .withString("Model", "A");
+    proxyTable.putItem(item);
+    awsTable.putItem(item);
+
+    updateItemSpec = new UpdateItemSpec().withPrimaryKey("Name", "testName")
+            .withUpdateExpression("SET Serial = :val1, Price = :val2, Model = :val3")
+            .withValueMap(new ValueMap().withNumber(":val1", 45)
+                    .withNumber(":val2", 20.5)
+                    .withString(":val3", "B"));
+
+    awsTable.updateItem(updateItemSpec);
+    awsResult = awsTable.getItem("Name", "testName");
+
+    proxyTable.updateItem(updateItemSpec);
+    proxyResult = proxyTable.getItem("Name", "testName");
+    assertEquals(awsResult, proxyResult);
+
   }
 
   private void createTable() {
