@@ -49,14 +49,14 @@ public class DynamoApiTableTest extends BaseDynamoApiTest {
   @Test
   public void testListTables() {
     CreateTableRequest req1 =
-            new CreateTableRequest()
-                    .withTableName("aaa")
-                    .withProvisionedThroughput(
-                            new ProvisionedThroughput()
-                                    .withReadCapacityUnits(100L)
-                                    .withWriteCapacityUnits(100L))
-                    .withKeySchema(new KeySchemaElement("Name", KeyType.HASH))
-                    .withAttributeDefinitions(new AttributeDefinition("Name", ScalarAttributeType.S));
+        new CreateTableRequest()
+            .withTableName("aaa")
+            .withProvisionedThroughput(
+                new ProvisionedThroughput()
+                    .withReadCapacityUnits(100L)
+                    .withWriteCapacityUnits(100L))
+            .withKeySchema(new KeySchemaElement("Name", KeyType.HASH))
+            .withAttributeDefinitions(new AttributeDefinition("Name", ScalarAttributeType.S));
     CreateTableRequest req2 = req1.clone().withTableName("bbb");
     CreateTableRequest req3 = req1.clone().withTableName("ccc");
     CreateTableRequest req4 = req1.clone().withTableName("ddd");
