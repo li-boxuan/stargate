@@ -1,17 +1,17 @@
 package io.stargate.sgv2.dynamosvc.dynamo;
 
 import static com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapperFieldModel.DynamoDBAttributeType.valueOf;
+import static java.lang.Integer.min;
 
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapperFieldModel;
 import com.amazonaws.services.dynamodbv2.model.*;
 import io.stargate.bridge.proto.QueryOuterClass;
-import io.stargate.sgv2.common.cql.builder.Column;
-import io.stargate.sgv2.common.cql.builder.ImmutableColumn;
-import io.stargate.sgv2.common.cql.builder.QueryBuilder;
+import io.stargate.sgv2.common.cql.builder.*;
 import io.stargate.sgv2.common.grpc.StargateBridgeClient;
 import io.stargate.sgv2.dynamosvc.models.PrimaryKey;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class TableProxy extends Proxy {
   public CreateTableResult createTable(
@@ -60,6 +60,46 @@ public class TableProxy extends Proxy {
             .withTableStatus(TableStatus.DELETING)
             .withTableArn(tableName);
     return (new DeleteTableResult()).withTableDescription(tableDesc);
+  }
+
+  public ListTablesResult listTables(
+      ListTablesRequest listTablesRequest, StargateBridgeClient bridge) throws IOException {
+    final String startTableName = listTablesRequest.getExclusiveStartTableName();
+    Integer limit = listTablesRequest.getLimit();
+    if (limit == null || limit > 100) {
+      limit = 100;
+    }
+    QueryBuilder.QueryBuilder__21 queryBuilder =
+        new QueryBuilder()
+            .select()
+            .column("table_name")
+            .from("system_schema", "tables")
+            .where(
+                "keyspace_name",
+                Predicate.EQ,
+                DataMapper.fromDynamo(DataMapper.toDynamo(KEYSPACE_NAME)));
+    QueryOuterClass.Response response = bridge.executeQuery(queryBuilder.build());
+    List<String> allTableNames =
+        response.getResultSet().getRowsList().stream()
+            .map(row -> row.getValues(0))
+            .map(QueryOuterClass.Value::getString)
+            .collect(Collectors.toList());
+    int startIndex = 0;
+    if (startTableName != null && !startTableName.isEmpty()) {
+      startIndex = allTableNames.indexOf(startTableName);
+      startIndex = startIndex == -1 ? 0 : startIndex + 1;
+    }
+    if (startIndex == allTableNames.size()) {
+      return new ListTablesResult();
+    }
+    int endIndex = min(allTableNames.size(), startIndex + limit);
+    List<String> tableNames = allTableNames.subList(startIndex, endIndex);
+    if (endIndex == allTableNames.size()) {
+      return new ListTablesResult().withTableNames(tableNames);
+    }
+    return new ListTablesResult()
+        .withTableNames(tableNames)
+        .withLastEvaluatedTableName(tableNames.get(endIndex - 1));
   }
 
   private TableDescription getTableDescription(
