@@ -93,6 +93,11 @@ public class DynamoResource {
               awsRequestMapper.readValue(payload, DeleteItemRequest.class);
           result = itemProxy.deleteItem(deleteItemRequest, bridge);
           break;
+        case ListTables:
+          ListTablesRequest listTablesRequest =
+              awsRequestMapper.readValue(payload, ListTablesRequest.class);
+          result = tableProxy.listTables(listTablesRequest, bridge);
+          break;
         case Query:
           QueryRequest queryRequest = awsRequestMapper.readValue(payload, QueryRequest.class);
           result = queryProxy.query(queryRequest, bridge);
